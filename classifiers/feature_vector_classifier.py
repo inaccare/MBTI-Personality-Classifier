@@ -12,14 +12,15 @@ import enchant
 
 NUM_ITERS = 10
 ETA = 0.01
-TEST_BATCH_SIZE = 10
+TEST_BATCH_SIZE = 100
 
 DIMENSIONS = ['IE', 'NS', 'FT', 'PJ']
 LETTER_PAIRS = [['I', 'E'], ['N', 'S'], ['F', 'T'], ['P', 'J']]
 
-BAG_OF_WORDS = True
+BAG_OF_WORDS = False
 WORD_LENGTH = False
 NGRAMS = False
+PART_OF_SPEECH = True
 PART_OF_SPEECH_NGRAMS = False
 PUNCTUATION = False
 QUANTITATIVE = False
@@ -70,32 +71,42 @@ def featureExtractor(x):
         	else:
         		numMisspells += 1
     
+    if PART_OF_SPEECH:
+        tags = []
+        try: 
+            for sent in nltk.sent_tokenize(x):
+                tags += nltk.pos_tag(nltk.word_tokenize(sent))
+        except UnicodeDecodeError:
+            pass
+        for word, tag in tags:
+            features[tag] += 1  
+
     if PART_OF_SPEECH_NGRAMS:
-	    pos_n = 3
-	    tags = []
-	    try: 
-	        for sent in nltk.sent_tokenize(x):
-	            tags += nltk.pos_tag(nltk.word_tokenize(sent))
-	    except UnicodeDecodeError:
-	        pass
-	    post_as_tags = []
-	    for word, tag in tags:
-	        post_as_tags.append(tag)
-	    for i in xrange(pos_n, len(post_as_tags)):
-	        current = ''
-	        for j in range(i-pos_n,i+1):
-	            try: 
-	                current += post_as_tags[j]
-	            except UnicodeDecodeError:
-	                pass
-	        features['pos_ngrams', current] += 1
-    
+        pos_n = 3
+        tags = []
+        try: 
+            for sent in nltk.sent_tokenize(x):
+                tags += nltk.pos_tag(nltk.word_tokenize(sent))
+        except UnicodeDecodeError:
+            pass
+        post_as_tags = []
+        for word, tag in tags:
+            post_as_tags.append(tag)
+        for i in xrange(pos_n, len(post_as_tags)):
+            current = ''
+            for j in range(i-pos_n,i+1):
+                try: 
+                    current += post_as_tags[j]
+                except UnicodeDecodeError:
+                    pass
+            features['pos_ngrams', current] += 1 
+
     if NGRAMS:
-	    n = 3
-	    strippedX = ''.join(char for char in x if char.isalpha())
-	    for i in xrange(n, len(strippedX)):
-	        currentNGram = strippedX[i-n:i+1]
-	        features['n-grams', currentNGram] += 1
+        n = 3
+        strippedX = ''.join(char for char in x if char.isalpha())
+        for i in xrange(n, len(strippedX)):
+            currentNGram = strippedX[i-n:i+1]
+            features['n-grams', currentNGram] += 1
 
     if numWords != 0:
         if PUNCTUATION: features[('special', 'punctiation to words')] = float(numPunctuation) / float(numWords)
@@ -132,8 +143,7 @@ def increment(d1, scale, d2):
 
 def verbosePredict(phi, y, weights, out):
 	yy = 1 if dotProduct(phi, weights) >= 0 else -1
-	if y == yy: return 1
-	else: return -1
+	return yy
 	'''
 	if y:
 		print >>out, 'Truth: %s, Prediction: %s [%s]' % (y, yy, 'CORRECT' if y == yy else 'WRONG')
@@ -174,12 +184,14 @@ def testing(pairs, weights, PATH):
 	for pair in pairs:
 		user_posts, y = pair
 		result_y = 0
+		prediction = None
 		for post in user_posts:
 			print >>out, '===', post
 			result_y += verbosePredict(featureExtractor(post), y, weights, out)
-		if result_y >= 0: prediction = y
-		else: prediction = -1*y
-		print >>out, 'Truth: %s, Prediction: %s [%s]' % (y, prediction, 'CORRECT' if prediction == y else 'WRONG')
+		if result_y >= 0: prediction = 1
+		else: prediction = -1
+		if y == 1: print >>out, 'Truth: %s, Prediction: %s [%s]' % (y, prediction, 'CORRECT' if prediction == 1 else 'WRONG')
+		if y == -1: print >>out, 'Truth: %s, Prediction: %s [%s]' % (y, prediction, 'CORRECT' if prediction == -1 else 'WRONG')		
 	out.close()
 
 def process(a, b, ab):
